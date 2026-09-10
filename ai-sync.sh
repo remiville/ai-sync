@@ -30,5 +30,73 @@ read_entries() {
 # Sourced by the test suite to exercise one function at a time.
 [ "${AI_SYNC_LIB:-}" = 1 ] && return 0
 
-echo "ai-sync: not implemented" >&2
-exit 1
+# The repository's info/exclude — never "$project/.git/info/exclude": in a
+# worktree .git is a file and the exclude lives in the main gitdir.
+exclude_path() {
+  d=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null) || return 1
+  case "$d" in /*) ;; *) d="$1/$d" ;; esac
+  printf '%s/info/exclude\n' "$d"
+}
+
+exclude() {
+  f=$(exclude_path "$1") || {
+    echo "ai-sync: $1 is not a git repository, skipping exclude" >&2
+    return 0
+  }
+  mkdir -p "$(dirname "$f")"
+  [ -f "$f" ] || : > "$f"
+  grep -qxF "$2" "$f" || printf '%s\n' "$2" >> "$f"
+}
+
+fetch_repo() {
+  url=$1
+  name=$(basename "$url" .git)
+  repo="$CACHE/$name"
+  if [ -d "$repo/.git" ]; then
+    [ "$UPDATE" = 1 ] && git -C "$repo" pull --ff-only --quiet
+  else
+    mkdir -p "$CACHE"
+    git clone --quiet "$url" "$repo"
+  fi
+  printf '%s\n' "$repo"
+}
+
+link_entry() {
+  project=$1 entry=$2 url=$3
+  repo=$(fetch_repo "$url")
+  src="$repo/.claude/rules/$entry"
+  [ -d "$src" ] || {
+    echo "ai-sync: $url has no entry '$entry' at .claude/rules/$entry" >&2
+    return 1
+  }
+  dst="$project/.claude/rules/$entry"
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  elif [ -e "$dst" ]; then
+    echo "ai-sync: $dst exists and is not a symlink — refusing to replace it" >&2
+    return 1
+  fi
+  mkdir -p "$project/.claude/rules"
+  ln -s "$src" "$dst"
+  exclude "$project" "/.claude/rules/$entry"
+  echo "linked $entry -> $src"
+}
+
+usage() { echo "usage: ai-sync.sh [-C DIR] [--update]" >&2; exit 2; }
+
+PROJECT_DIR=.
+UPDATE=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -C) [ $# -ge 2 ] || usage; PROJECT_DIR=$2; shift 2 ;;
+    --update) UPDATE=1; shift ;;
+    -h|--help) usage ;;
+    *) usage ;;
+  esac
+done
+
+PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
+read_entries "$PROJECT_DIR/$CONFIG_NAME" | while read -r entry url; do
+  link_entry "$PROJECT_DIR" "$entry" "$url"
+done
+exclude "$PROJECT_DIR" "/$CONFIG_NAME"

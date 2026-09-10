@@ -52,6 +52,7 @@ drop_sandbox() { rm -rf "$SANDBOX"; }
 
 . "$HERE/tests/entries.sh"
 . "$HERE/tests/link.sh"
+. "$HERE/tests/update.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

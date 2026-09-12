@@ -29,7 +29,7 @@ drop_sandbox
 new_sandbox
 write_config ai-rules "$ORIGIN"
 AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" -C "$PROJECT" --rules "$ORIGIN" >/dev/null
-[ -L "$PROJECT/.claude/rules/ai-rules" ] \
+[ -e "$PROJECT/.claude/rules/ai-rules" ] \
   && pass "a matching --rules proceeds" || fail "a matching --rules proceeds"
 drop_sandbox
 

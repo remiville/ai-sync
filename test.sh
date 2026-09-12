@@ -51,7 +51,7 @@ EOF
 drop_sandbox() { rm -rf "$SANDBOX"; }
 
 . "$HERE/tests/entries.sh"
-. "$HERE/tests/link.sh"
+. "$HERE/tests/copy.sh"
 . "$HERE/tests/update.sh"
 . "$HERE/tests/install.sh"
 

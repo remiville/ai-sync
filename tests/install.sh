@@ -1,10 +1,19 @@
 # install.sh seeds a config only when there is none.
+#
+# These cases run the *committed* ai-sync.sh, not the working tree: install.sh
+# clones $AI_SYNC_REPO into the cache and hands off to what it finds there, so
+# `file://$HERE` yields HEAD. They are therefore always one commit behind, and
+# must assert only what install.sh itself owns. Asserting the shape of the
+# entry here once read `[ -L ]` and went on passing after the entry became a
+# directory, because the clone still held the linking script — a green test
+# measuring the previous commit. What install.sh promises is the hand-off; that
+# the hand-off copies is copy.sh's business.
 new_sandbox
 AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" -C "$PROJECT" --rules "$ORIGIN" >/dev/null
 actual=$(grep -c '"ai-rules"' "$PROJECT/ai-sync.local.json")
 check "a missing config is seeded from --rules" "$actual" "1"
-[ -L "$PROJECT/.claude/rules/ai-rules" ] \
-  && pass "seeding then links" || fail "seeding then links"
+[ -e "$PROJECT/.claude/rules/ai-rules" ] \
+  && pass "seeding then hands off" || fail "seeding then hands off"
 drop_sandbox
 
 # No config and no --rules is an error naming the option.

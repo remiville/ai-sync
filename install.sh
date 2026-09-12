@@ -1,5 +1,5 @@
 #!/bin/sh
-# Bootstrap ai-sync, then link the project's directives.
+# Bootstrap ai-sync, then copy the project's directives in.
 #
 #   curl -fsSL .../install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git

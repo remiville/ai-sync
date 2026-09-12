@@ -126,7 +126,23 @@ while [ $# -gt 0 ]; do
 done
 
 PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
-read_entries "$PROJECT_DIR/$CONFIG_NAME" | while read -r entry url; do
+
+# The entries are read into a variable and not piped, because a pipeline takes
+# its status from its last command and a `while` that runs zero times succeeds:
+# `read_entries | while read` printed every refusal and then exited 0. A missing
+# config, a malformed one and one declaring no entry all reported success while
+# copying nothing — and it reached a caller, claude-bot's --update-rules, which
+# announced "ok" for fourteen projects holding no directives at all.
+#
+# An assignment's status is the substitution's, so this puts the refusal
+# somewhere `set -eu` can act on it. The loop then reads a heredoc, which also
+# keeps it in this shell rather than a subshell; copy_entry's own failures
+# already propagate through `set -e` either way, but a subshell is one more
+# place a status can die quietly, and that is the bug being fixed.
+entries=$(read_entries "$PROJECT_DIR/$CONFIG_NAME")
+while read -r entry url; do
   copy_entry "$PROJECT_DIR" "$entry" "$url"
-done
+done <<EOF
+$entries
+EOF
 exclude "$PROJECT_DIR" "/$CONFIG_NAME"

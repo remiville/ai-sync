@@ -30,24 +30,6 @@ read_entries() {
 # Sourced by the test suite to exercise one function at a time.
 [ "${AI_SYNC_LIB:-}" = 1 ] && return 0
 
-# The repository's info/exclude — never "$project/.git/info/exclude": in a
-# worktree .git is a file and the exclude lives in the main gitdir.
-exclude_path() {
-  d=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null) || return 1
-  case "$d" in /*) ;; *) d="$1/$d" ;; esac
-  printf '%s/info/exclude\n' "$d"
-}
-
-exclude() {
-  f=$(exclude_path "$1") || {
-    echo "ai-sync: $1 is not a git repository, skipping exclude" >&2
-    return 0
-  }
-  mkdir -p "$(dirname "$f")"
-  [ -f "$f" ] || : > "$f"
-  grep -qxF "$2" "$f" || printf '%s\n' "$2" >> "$f"
-}
-
 fetch_repo() {
   url=$1
   name=$(basename "$url" .git)
@@ -106,7 +88,6 @@ copy_entry() {
   rm -rf "$dst"
   mkdir -p "$dest/.claude/rules"
   cp -a "$src/." "$dst/"
-  exclude "$dest" "/.claude/rules/$entry"
   echo "copied $entry <- $src"
 }
 
@@ -129,11 +110,9 @@ done
 # session whatever the working directory. -C is the opt-in for a single
 # project, and carries its own config as it always did.
 if [ -n "$DEST" ]; then
-  PROJECT_MODE=1
   DEST=$(cd "$DEST" && pwd)
   CONFIG="$DEST/$CONFIG_NAME"
 else
-  PROJECT_MODE=0
   DEST=$HOME
   CONFIG="${AI_SYNC_CONFIG:-$HOME/.config/ai-sync/$CONFIG_NAME}"
 fi
@@ -156,9 +135,3 @@ while read -r entry url; do
 done <<EOF
 $entries
 EOF
-
-# The config is the destination's own file only under -C; in the home case it
-# lives under ~/.config and the home is not the repository it belongs to.
-if [ "$PROJECT_MODE" = 1 ]; then
-  exclude "$DEST" "/$CONFIG_NAME"
-fi

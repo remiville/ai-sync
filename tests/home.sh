@@ -32,3 +32,13 @@ else
     || fail "a missing user config is refused"
 fi
 drop_sandbox
+
+# The home may itself be a git repository — versioned dotfiles are ordinary.
+# Nothing is written to its info/exclude either.
+new_sandbox
+git -C "$HOME" init -q -b main
+write_user_config ai-rules "$ORIGIN"
+sh "$HERE/ai-sync.sh" >/dev/null
+actual=$(grep -c '^/\.claude' "$HOME/.git/info/exclude" || true)
+check "a git home keeps its info/exclude" "$actual" "0"
+drop_sandbox

@@ -9,15 +9,14 @@ sh "$HERE/ai-sync.sh" -C "$PROJECT" >/dev/null
 actual=$(cat "$PROJECT/.claude/rules/ai-rules/core/PROJECT")
 check "the copy carries the tree" "$actual" "project"
 
-actual=$(grep -c '^/\.claude/rules/ai-rules$' "$SANDBOX/project/.git/info/exclude")
-check "the copy is excluded" "$actual" "1"
+actual=$(grep -c '^/\.claude' "$PROJECT/.git/info/exclude" || true)
+check "nothing is written to info/exclude" "$actual" "0"
 
-actual=$(grep -c '^/ai-sync\.local\.json$' "$SANDBOX/project/.git/info/exclude")
-check "the config is excluded" "$actual" "1"
-
-# Now the test that guards the repository: a failed exclude stages the tree.
-actual=$(git -C "$PROJECT" status --porcelain | wc -l | tr -d ' ')
-check "the working tree stays clean" "$actual" "0"
+# The tree is untracked and nothing hides it any more, so `git status` sees it.
+# What must stay clean is everything else: ai-sync adds no file of its own to
+# the repository and stages nothing.
+actual=$(git -C "$PROJECT" status --porcelain -- . ':!.claude' ':!ai-sync.local.json' | wc -l | tr -d ' ')
+check "ai-sync stages nothing of its own" "$actual" "0"
 drop_sandbox
 
 # A second run changes nothing.
@@ -25,10 +24,8 @@ new_sandbox
 write_config ai-rules "$ORIGIN"
 sh "$HERE/ai-sync.sh" -C "$PROJECT" >/dev/null
 sh "$HERE/ai-sync.sh" --force -C "$PROJECT" >/dev/null
-actual=$(grep -c '^/\.claude/rules/ai-rules$' "$SANDBOX/project/.git/info/exclude")
-check "a second run does not duplicate the exclude" "$actual" "1"
-actual=$(git -C "$PROJECT" status --porcelain | wc -l | tr -d ' ')
-check "a second run leaves the tree clean" "$actual" "0"
+actual=$(git -C "$PROJECT" status --porcelain -- . ':!.claude' ':!ai-sync.local.json' | wc -l | tr -d ' ')
+check "a second run stages nothing of its own" "$actual" "0"
 drop_sandbox
 
 # Without a terminal an existing directory is refused; --force replaces it.
@@ -73,15 +70,4 @@ sh "$HERE/ai-sync.sh" --force -C "$PROJECT" >/dev/null
 [ -f "$SANDBOX/ai-rules/.claude/rules/ai-rules/CLAUDE-BOT.md" ] \
   && pass "removing the symlink leaves its target" \
   || fail "removing the symlink leaves its target"
-drop_sandbox
-
-# A worktree resolves info/exclude to the main gitdir.
-new_sandbox
-write_config ai-rules "$ORIGIN"
-git -C "$PROJECT" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
-git -C "$PROJECT" worktree add -q "$SANDBOX/wt" -b wt
-cp "$PROJECT/ai-sync.local.json" "$SANDBOX/wt/ai-sync.local.json"
-sh "$HERE/ai-sync.sh" -C "$SANDBOX/wt" >/dev/null
-actual=$(grep -c '^/\.claude/rules/ai-rules$' "$PROJECT/.git/info/exclude")
-check "a worktree writes the main gitdir's exclude" "$actual" "1"
 drop_sandbox

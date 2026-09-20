@@ -1,25 +1,25 @@
 #!/bin/sh
-# Bootstrap ai-sync, then copy the project's directives in.
+# Bootstrap ai-sync, then copy the directives in.
 #
 #   curl -fsSL .../install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git
 #
-# The first form is the normal one: the project already carries an
-# ai-sync.local.json and this only locates ai-sync and hands off. The second
-# seeds a project that has none, which is the only case in which this script
-# writes that file.
+# The first form is the normal one: the config already exists and this only
+# locates ai-sync and hands off. The second seeds a config where there is none,
+# which is the only case in which this script writes that file. The config is
+# the user's, at ~/.config/ai-sync/, unless -C names a project.
 set -eu
 
 REPO_URL="${AI_SYNC_REPO:-https://github.com/remiville/ai-sync.git}"
 CACHE="${AI_SYNC_CACHE:-$HOME/.config/ai-sync/repos}"
 CONFIG_NAME="ai-sync.local.json"
 
-PROJECT_DIR=.
+DEST=""
 RULES=""
 ENTRY=""
 while [ $# -gt 0 ]; do
   case $1 in
-    -C) [ $# -ge 2 ] || exit 2; PROJECT_DIR=$2; shift 2 ;;
+    -C) [ $# -ge 2 ] || exit 2; DEST=$2; shift 2 ;;
     --rules) [ $# -ge 2 ] || exit 2; RULES=$2; shift 2 ;;
     --entry) [ $# -ge 2 ] || exit 2; ENTRY=$2; shift 2 ;;
     *) echo "usage: install.sh [-C DIR] [--rules URL] [--entry NAME]" >&2; exit 2 ;;
@@ -27,8 +27,15 @@ while [ $# -gt 0 ]; do
 done
 
 command -v git >/dev/null 2>&1 || { echo "install.sh: git is required" >&2; exit 1; }
-PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
-config="$PROJECT_DIR/$CONFIG_NAME"
+
+# Like ai-sync.sh: the home is the default and -C is the opt-in for a project.
+if [ -n "$DEST" ]; then
+  DEST=$(cd "$DEST" && pwd)
+  config="$DEST/$CONFIG_NAME"
+else
+  config="$HOME/.config/ai-sync/$CONFIG_NAME"
+  mkdir -p "$(dirname "$config")"
+fi
 
 if [ -f "$config" ]; then
   if [ -n "$RULES" ] && ! grep -qF "\"$RULES\"" "$config"; then
@@ -50,7 +57,7 @@ elif [ -n "$RULES" ]; then
 EOF
   echo "wrote $config"
 else
-  echo "install.sh: no $CONFIG_NAME here — pass --rules <url> to create one." >&2
+  echo "install.sh: no config at $config — pass --rules <url> to create one." >&2
   exit 1
 fi
 
@@ -61,4 +68,7 @@ else
   git clone --quiet "$REPO_URL" "$CACHE/ai-sync"
 fi
 
-exec sh "$CACHE/ai-sync/ai-sync.sh" -C "$PROJECT_DIR"
+if [ -n "$DEST" ]; then
+  exec sh "$CACHE/ai-sync/ai-sync.sh" -C "$DEST"
+fi
+exec sh "$CACHE/ai-sync/ai-sync.sh"

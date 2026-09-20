@@ -1,21 +1,31 @@
 # ai-sync
 
-Keep a project's AI directives in step with a git repository of them, from one
+Keep a machine's AI directives in step with a git repository of them, from one
 shared clone. `git` is the only dependency.
 
     curl -fsSL https://raw.githubusercontent.com/remiville/ai-sync/main/install.sh | sh
     curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git
 
-The first form expects the project to carry an `ai-sync.local.json` already.
-The second seeds one, and is the only case in which anything here writes it —
-`ai-sync.sh` itself only ever reads it.
+The first form expects an `ai-sync.local.json` to exist already. The second
+seeds one, and is the only case in which anything here writes it — `ai-sync.sh`
+itself only ever reads it.
 
     ai-sync.sh [-C DIR] [--update] [--force]
 
-Clones each repository the config names into `~/.config/ai-sync/repos/`, copies
-`<repo>/.claude/rules/<entry>` to `<project>/.claude/rules/<entry>`, and adds
-the copy and the config to the repository's `info/exclude`. `--update` pulls
-each clone first, and is how a changed directive reaches a project.
+Clones each repository the config names into `~/.config/ai-sync/repos/` and
+copies `<repo>/.claude/rules/<entry>` into `~/.claude/rules/<entry>`, where
+Claude Code loads it for every session whatever the working directory. The
+config is `~/.config/ai-sync/ai-sync.local.json`, shared by every use of
+ai-sync on the machine and holding one entry per tree.
+
+`-C DIR` copies into a single project instead — `DIR/.claude/rules/<entry>`,
+configured by `DIR/ai-sync.local.json`. Nothing is written to any repository's
+`info/exclude`, in either mode: a copy is an untracked directory, and the
+repository ignores it if it wants it hidden. Hiding it in `info/exclude` is
+what made it disappear from every worktree.
+
+`--update` pulls each clone first, and is how a changed directive reaches the
+tree.
 
 A refresh replaces the copy whole rather than writing over it, so a file
 deleted upstream disappears downstream. The copy is therefore disposable and

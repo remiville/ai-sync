@@ -45,3 +45,12 @@ else
     || fail "a conflicting --rules is refused"
 fi
 drop_sandbox
+
+# install.sh seeds the user config and performs the first copy.
+new_sandbox
+AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" --rules "$ORIGIN" >/dev/null 2>&1 || true
+actual=$([ -f "$HOME/.config/ai-sync/ai-sync.local.json" ] && echo yes || echo no)
+check "install.sh seeds the user config" "$actual" "yes"
+actual=$(cat "$HOME/.claude/rules/ai-rules/core/PROJECT" 2>/dev/null || true)
+check "install.sh performs the first copy" "$actual" "project"
+drop_sandbox

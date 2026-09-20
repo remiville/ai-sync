@@ -48,10 +48,25 @@ write_config() {
 EOF
 }
 
+write_user_config() {
+  mkdir -p "$HOME/.config/ai-sync"
+  cat > "$HOME/.config/ai-sync/ai-sync.local.json" <<EOF
+{
+  "version": 1,
+  "claude": {
+    "rules": {
+      "$1": "$2"
+    }
+  }
+}
+EOF
+}
+
 drop_sandbox() { rm -rf "$SANDBOX"; }
 
 . "$HERE/tests/entries.sh"
 . "$HERE/tests/copy.sh"
+. "$HERE/tests/home.sh"
 . "$HERE/tests/update.sh"
 . "$HERE/tests/install.sh"
 

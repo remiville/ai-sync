@@ -16,7 +16,7 @@ CONFIG_NAME="ai-sync.local.json"
 # that does not match the canonical form is refused rather than guessed at.
 read_entries() {
   config=$1
-  [ -f "$config" ] || { echo "ai-sync: no $CONFIG_NAME in the project" >&2; return 1; }
+  [ -f "$config" ] || { echo "ai-sync: no config at $config" >&2; return 1; }
   grep -q '"claude"' "$config" && grep -q '"rules"' "$config" || {
     echo "ai-sync: $config is not in canonical form" >&2; return 1
   }
@@ -78,14 +78,14 @@ fetch_repo() {
 # code — and a `read` from stdin would swallow the next entry instead of an
 # answer. /dev/tty is the terminal or it is nothing, which is exactly the test.
 copy_entry() {
-  project=$1 entry=$2 url=$3
+  dest=$1 entry=$2 url=$3
   repo=$(fetch_repo "$url")
   src="$repo/.claude/rules/$entry"
   [ -d "$src" ] || {
     echo "ai-sync: $url has no entry '$entry' at .claude/rules/$entry" >&2
     return 1
   }
-  dst="$project/.claude/rules/$entry"
+  dst="$dest/.claude/rules/$entry"
   if [ -e "$dst" ] || [ -L "$dst" ]; then
     if [ "$FORCE" = 1 ] || [ "$UPDATE" = 1 ]; then
       :
@@ -104,20 +104,20 @@ copy_entry() {
   # On a symlink this removes the link and not its target, which is what
   # migrates a project linked by the previous mechanism.
   rm -rf "$dst"
-  mkdir -p "$project/.claude/rules"
+  mkdir -p "$dest/.claude/rules"
   cp -a "$src/." "$dst/"
-  exclude "$project" "/.claude/rules/$entry"
+  exclude "$dest" "/.claude/rules/$entry"
   echo "copied $entry <- $src"
 }
 
 usage() { echo "usage: ai-sync.sh [-C DIR] [--update] [--force]" >&2; exit 2; }
 
-PROJECT_DIR=.
+DEST=""
 UPDATE=0
 FORCE=0
 while [ $# -gt 0 ]; do
   case $1 in
-    -C) [ $# -ge 2 ] || usage; PROJECT_DIR=$2; shift 2 ;;
+    -C) [ $# -ge 2 ] || usage; DEST=$2; shift 2 ;;
     --update) UPDATE=1; shift ;;
     --force) FORCE=1; shift ;;
     -h|--help) usage ;;
@@ -125,7 +125,18 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
+# No -C is the common case: one tree in the user's home, loaded by every
+# session whatever the working directory. -C is the opt-in for a single
+# project, and carries its own config as it always did.
+if [ -n "$DEST" ]; then
+  PROJECT_MODE=1
+  DEST=$(cd "$DEST" && pwd)
+  CONFIG="$DEST/$CONFIG_NAME"
+else
+  PROJECT_MODE=0
+  DEST=$HOME
+  CONFIG="${AI_SYNC_CONFIG:-$HOME/.config/ai-sync/$CONFIG_NAME}"
+fi
 
 # The entries are read into a variable and not piped, because a pipeline takes
 # its status from its last command and a `while` that runs zero times succeeds:
@@ -139,10 +150,15 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
 # keeps it in this shell rather than a subshell; copy_entry's own failures
 # already propagate through `set -e` either way, but a subshell is one more
 # place a status can die quietly, and that is the bug being fixed.
-entries=$(read_entries "$PROJECT_DIR/$CONFIG_NAME")
+entries=$(read_entries "$CONFIG")
 while read -r entry url; do
-  copy_entry "$PROJECT_DIR" "$entry" "$url"
+  copy_entry "$DEST" "$entry" "$url"
 done <<EOF
 $entries
 EOF
-exclude "$PROJECT_DIR" "/$CONFIG_NAME"
+
+# The config is the destination's own file only under -C; in the home case it
+# lives under ~/.config and the home is not the repository it belongs to.
+if [ "$PROJECT_MODE" = 1 ]; then
+  exclude "$DEST" "/$CONFIG_NAME"
+fi

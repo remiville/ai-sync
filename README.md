@@ -7,8 +7,12 @@ shared clone. `git` is the only dependency.
     curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git
 
 The first form expects an `ai-sync.local.json` to exist already. The second
-seeds one, and is the only case in which anything here writes it — `ai-sync.sh`
-itself only ever reads it.
+seeds one, or adds the repository beside those it already names — under the
+repository's name, or `--entry NAME`. It is the only case in which anything
+here writes the file — `ai-sync.sh` itself only ever reads it. An entry name
+already bound to another repository is refused rather than replaced. Either
+form then runs `ai-sync.sh --update`, so re-running it refreshes every copy
+already in place.
 
     ai-sync.sh [-C DIR] [--update] [--force]
 

@@ -69,6 +69,7 @@ drop_sandbox() { rm -rf "$SANDBOX"; }
 . "$HERE/tests/home.sh"
 . "$HERE/tests/update.sh"
 . "$HERE/tests/install.sh"
+. "$HERE/tests/ref.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

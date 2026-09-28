@@ -14,6 +14,16 @@ already bound to another repository is refused rather than replaced. Either
 form then runs `ai-sync.sh --update`, so re-running it refreshes every copy
 already in place.
 
+    curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git#v2
+
+`URL#REF` pins the entry to a branch, a tag or a commit (full or abbreviated).
+The config stores the value as written, `"your-rules": "…your-rules.git#v2"`,
+and that is what `--update` reads: a branch is followed to its new head, a tag
+or a commit stays where it is. Each ref has its own clone in the cache, so an
+entry pinned to a ref never moves one that follows the default branch. The
+same repository at another ref under an existing entry name is refused like any
+other replacement: edit the file to move a pin.
+
     ai-sync.sh [-C DIR] [--update] [--force]
 
 Clones each repository the config names into `~/.config/ai-sync/repos/` and

@@ -30,15 +30,48 @@ read_entries() {
 # Sourced by the test suite to exercise one function at a time.
 [ "${AI_SYNC_LIB:-}" = 1 ] && return 0
 
+# A value of the form "URL#REF" names a branch, a tag or a commit. It gets its
+# own clone, "<name>@<ref>", detached at the ref: a clone shared with the
+# unpinned entry would be moved under it by whichever entry ran last. '/' in a
+# branch becomes '~', which no ref name may contain, so two refs never share a
+# directory.
+#
+# A branch is resolved on origin first, so --update follows it; a tag or a
+# commit resolves to the same object on every fetch, which is what makes it a
+# pin.
+checkout_ref() {
+  repo=$1 ref=$2
+  if git -C "$repo" rev-parse -q --verify "refs/remotes/origin/$ref^{commit}" >/dev/null; then
+    target="refs/remotes/origin/$ref"
+  elif git -C "$repo" rev-parse -q --verify "$ref^{commit}" >/dev/null; then
+    target=$ref
+  else
+    echo "ai-sync: $repo has no branch, tag or commit '$ref'" >&2
+    return 1
+  fi
+  git -C "$repo" checkout --quiet --detach "$target"
+}
+
 fetch_repo() {
-  url=$1
+  url=${1%%#*}
+  ref=""
+  case $1 in *'#'*) ref=${1#*#} ;; esac
   name=$(basename "$url" .git)
+  [ -z "$ref" ] || name="$name@$(printf '%s' "$ref" | tr / '~')"
   repo="$CACHE/$name"
   if [ -d "$repo/.git" ]; then
-    [ "$UPDATE" = 1 ] && git -C "$repo" pull --ff-only --quiet
+    if [ "$UPDATE" = 1 ] && [ -z "$ref" ]; then
+      git -C "$repo" pull --ff-only --quiet
+    elif [ "$UPDATE" = 1 ]; then
+      git -C "$repo" fetch --quiet --tags origin
+      checkout_ref "$repo" "$ref"
+    fi
   else
     mkdir -p "$CACHE"
     git clone --quiet "$url" "$repo"
+    # A clone left on the default branch would be copied by the next run
+    # without --update, which never checks the ref again.
+    [ -z "$ref" ] || checkout_ref "$repo" "$ref" || { rm -rf "$repo"; return 1; }
   fi
   printf '%s\n' "$repo"
 }

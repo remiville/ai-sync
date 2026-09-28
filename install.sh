@@ -3,12 +3,17 @@
 #
 #   curl -fsSL .../install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git
+#   curl -fsSL .../install.sh | sh -s -- --rules git@github.com:you/your-rules.git#v2
 #
 # The first form is the normal one: the config already exists and this only
 # locates ai-sync and hands off. The second seeds a config where there is none,
 # or adds the repository to the one that exists; those are the only cases in
 # which this script writes that file. The config is the user's, at
 # ~/.config/ai-sync/, unless -C names a project.
+#
+# "URL#REF" names a branch, a tag or a commit. It is stored as written, so the
+# config is what tells ai-sync.sh --update to follow that branch or keep that
+# pin; the entry name comes from the URL alone.
 set -eu
 
 REPO_URL="${AI_SYNC_REPO:-https://github.com/remiville/ai-sync.git}"
@@ -23,7 +28,7 @@ while [ $# -gt 0 ]; do
     -C) [ $# -ge 2 ] || exit 2; DEST=$2; shift 2 ;;
     --rules) [ $# -ge 2 ] || exit 2; RULES=$2; shift 2 ;;
     --entry) [ $# -ge 2 ] || exit 2; ENTRY=$2; shift 2 ;;
-    *) echo "usage: install.sh [-C DIR] [--rules URL] [--entry NAME]" >&2; exit 2 ;;
+    *) echo "usage: install.sh [-C DIR] [--rules URL[#REF]] [--entry NAME]" >&2; exit 2 ;;
   esac
 done
 
@@ -59,14 +64,14 @@ config_entries() {
     "$1"
 }
 
-[ -n "$RULES" ] && [ -z "$ENTRY" ] && ENTRY=$(basename "$RULES" .git)
+[ -n "$RULES" ] && [ -z "$ENTRY" ] && ENTRY=$(basename "${RULES%%#*}" .git)
 
 if [ -f "$config" ] && [ -n "$RULES" ]; then
   entries=$(config_entries "$config")
   if printf '%s\n' "$entries" | cut -d' ' -f2 | grep -qxF "$RULES"; then
     :
   elif printf '%s\n' "$entries" | cut -d' ' -f1 | grep -qxF "$ENTRY"; then
-    echo "install.sh: $config already has an entry '$ENTRY' for another repository." >&2
+    echo "install.sh: $config already has an entry '$ENTRY' for another repository or ref." >&2
     echo "            Pass --entry to name this one differently, or edit the file." >&2
     exit 1
   # Rewriting regenerates the whole file, so it is done only when the file is

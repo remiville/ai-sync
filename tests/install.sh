@@ -123,3 +123,26 @@ check "install.sh seeds the user config" "$actual" "yes"
 actual=$(cat "$HOME/.claude/rules/ai-rules/core/PROJECT" 2>/dev/null || true)
 check "install.sh performs the first copy" "$actual" "project"
 drop_sandbox
+
+# A ref after '#' is stored with the URL, where --update reads it, and is not
+# part of the entry name.
+new_sandbox
+AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" -C "$PROJECT" \
+  --rules "$ORIGIN#main" >/dev/null 2>&1 || true
+actual=$(grep -c "\"ai-rules\": \"$ORIGIN#main\"" "$PROJECT/ai-sync.local.json" || true)
+check "a ref is stored with the URL" "$actual" "1"
+drop_sandbox
+
+# The same repository at another ref, under the same name, is a replacement
+# and is refused like any other.
+new_sandbox
+write_config ai-rules "$ORIGIN#main"
+before=$(cat "$PROJECT/ai-sync.local.json")
+if AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" -C "$PROJECT" \
+     --rules "$ORIGIN#stable" >/dev/null 2>&1; then
+  fail "another ref under the same name is refused"
+else
+  check "another ref under the same name is refused" \
+    "$(cat "$PROJECT/ai-sync.local.json")" "$before"
+fi
+drop_sandbox

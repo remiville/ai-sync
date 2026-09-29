@@ -146,3 +146,36 @@ else
     "$(cat "$PROJECT/ai-sync.local.json")" "$before"
 fi
 drop_sandbox
+
+# A stand-in ai-sync repository whose ai-sync.sh only leaves a mark, so a test
+# can tell which clone install.sh handed off to.
+new_fake_ai_sync() {
+  mkdir -p "$SANDBOX/fake-ai-sync"
+  printf '#!/bin/sh\ntouch "$HOME/fake-ran"\n' > "$SANDBOX/fake-ai-sync/ai-sync.sh"
+  git -C "$SANDBOX/fake-ai-sync" init -q -b main
+  git -C "$SANDBOX/fake-ai-sync" add -A
+  git -C "$SANDBOX/fake-ai-sync" -c user.email=t@t -c user.name=t commit -qm fake
+}
+
+# The ai-sync clone left by another AI_SYNC_REPO is replaced, not pulled: a
+# pull would fetch the earlier origin and quietly run its code.
+new_sandbox
+new_fake_ai_sync
+write_config ai-rules "$ORIGIN"
+AI_SYNC_REPO="file://$HERE" sh "$HERE/install.sh" -C "$PROJECT" >/dev/null 2>&1 || true
+AI_SYNC_REPO="file://$SANDBOX/fake-ai-sync" sh "$HERE/install.sh" -C "$PROJECT" \
+  >/dev/null 2>&1 || true
+actual=$([ -e "$HOME/fake-ran" ] && echo yes || echo no)
+check "an ai-sync clone from another AI_SYNC_REPO is replaced" "$actual" "yes"
+drop_sandbox
+
+# A cache directory left without .git does not block the ai-sync clone.
+new_sandbox
+new_fake_ai_sync
+write_config ai-rules "$ORIGIN"
+mkdir -p "$HOME/.config/ai-sync/repos/ai-sync/leftover"
+AI_SYNC_REPO="file://$SANDBOX/fake-ai-sync" sh "$HERE/install.sh" -C "$PROJECT" \
+  >/dev/null 2>&1 || true
+actual=$([ -e "$HOME/fake-ran" ] && echo yes || echo no)
+check "an ai-sync directory without .git is replaced" "$actual" "yes"
+drop_sandbox

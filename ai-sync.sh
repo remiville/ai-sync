@@ -52,6 +52,20 @@ checkout_ref() {
   git -C "$repo" checkout --quiet --detach "$target"
 }
 
+# The cache directory is named after the URL's basename, so a clone made from
+# another URL — the same repository over https, a fork, an earlier attempt —
+# sits where this one is expected, and fetching it fetches that other remote.
+# Anything else there, such as a directory an interrupted clone left without
+# .git, is not a clone at all. Either way the cache is disposable, so the
+# caller replaces it rather than repointing it: `remote set-url` would keep the
+# old remote's branches and tags, and a ref only it had would still resolve.
+#
+# The raw config value is compared, not `remote get-url`, which applies
+# insteadOf rewriting and would make every clone look foreign under such a rule.
+is_clone_of() {
+  [ -d "$1/.git" ] && [ "$(git -C "$1" config --get remote.origin.url)" = "$2" ]
+}
+
 fetch_repo() {
   url=${1%%#*}
   ref=""
@@ -59,7 +73,7 @@ fetch_repo() {
   name=$(basename "$url" .git)
   [ -z "$ref" ] || name="$name@$(printf '%s' "$ref" | tr / '~')"
   repo="$CACHE/$name"
-  if [ -d "$repo/.git" ]; then
+  if is_clone_of "$repo" "$url"; then
     if [ "$UPDATE" = 1 ] && [ -z "$ref" ]; then
       git -C "$repo" pull --ff-only --quiet
     elif [ "$UPDATE" = 1 ]; then
@@ -67,6 +81,7 @@ fetch_repo() {
       checkout_ref "$repo" "$ref"
     fi
   else
+    rm -rf "$repo"
     mkdir -p "$CACHE"
     git clone --quiet "$url" "$repo"
     # A clone left on the default branch would be copied by the next run

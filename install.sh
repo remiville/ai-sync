@@ -95,10 +95,17 @@ else
   exit 1
 fi
 
+# A clone of another AI_SYNC_REPO would be pulled from that other origin and
+# its code run in place of this one; a directory without .git is no clone at
+# all. Either is replaced, as ai-sync.sh's is_clone_of does for the rules
+# clones, which this script cannot source. The raw config value is compared,
+# because `remote get-url` applies insteadOf rewriting.
 mkdir -p "$CACHE"
-if [ -d "$CACHE/ai-sync/.git" ]; then
+if [ -d "$CACHE/ai-sync/.git" ] &&
+   [ "$(git -C "$CACHE/ai-sync" config --get remote.origin.url)" = "$REPO_URL" ]; then
   git -C "$CACHE/ai-sync" pull --ff-only --quiet
 else
+  rm -rf "$CACHE/ai-sync"
   git clone --quiet "$REPO_URL" "$CACHE/ai-sync"
 fi
 

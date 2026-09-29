@@ -32,6 +32,12 @@ Claude Code loads it for every session whatever the working directory. The
 config is `~/.config/ai-sync/ai-sync.local.json`, shared by every use of
 ai-sync on the machine and holding one entry per tree.
 
+A clone is named after its URL, not by it, so switching an entry from an https
+URL to an ssh one, or to a fork, finds the earlier clone in place. A clone
+whose `origin` is not the URL the config names, or a directory that is not a
+clone at all, is deleted and cloned again: the cache is disposable, and
+repointing it would keep the old remote's branches resolvable.
+
 `-C DIR` copies into a single project instead — `DIR/.claude/rules/<entry>`,
 configured by `DIR/ai-sync.local.json`. Nothing is written to any repository's
 `info/exclude`, in either mode: a copy is an untracked directory, and the
